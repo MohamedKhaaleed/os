@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OS Lecture 2: System Calls & Processes</title>
+    <style>
+        /* --- CSS VARIABLES & RESET --- */
+        :root {
+            --bg-color: #0f172a;       /* Deep Slate Blue */
+            --text-primary: #f8fafc;   /* Off-white */
+            --text-secondary: #94a3b8; /* Muted Blue-Grey */
+            --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%); /* Cyan to Indigo */
+            --card-bg: rgba(30, 41, 59, 0.7); /* Glassy background */
+            --font-main: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --transition-speed: 0.5s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow: hidden; /* Prevent standard scrolling */
+        }
+
+        /* --- SCROLL SNAP CONTAINER --- */
+        /* This creates the presentation "slide" behavior */
+        main {
+            height: 100vh;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+        }
+
+        /* --- SLIDE BASE STYLES --- */
+        .slide {
+            height: 100vh;
+            width: 100%;
+            scroll-snap-align: start;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Decorative background blobs for modern feel */
+        .slide::before {
+            content: '';
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: var(--accent-gradient);
+            filter: blur(150px);
+            opacity: 0.15;
+            border-radius: 50%;
+            z-index: -1;
+        }
+
+        /* --- TYPOGRAPHY --- */
+        h1 {
+            font-size: 5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h2 {
+            font-size: 3rem;
+            margin-bottom: 2rem;
+            color: var(--text-primary);
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+        }
+
+        p, li {
+            font-size: 1.25rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        li {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        li::before {
+            content: '•';
+            color: #38bdf8; /* Accent color bullet */
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        /* --- SLIDE 1: TITLE SLIDE --- */
+        .slide-title {
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .slide-title .meta {
+            margin-top: 2rem;
+            font-size: 1.1rem;
+            opacity: 0.8;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 2rem;
+            width: 50%;
+        }
+
+        /* --- SLIDE 2: SPLIT LAYOUT (Text + Image) --- */
+        .slide-split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            max-width: 1600px;
+        }
+
+        .content-block {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .visual-block {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 1rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.05);
+            height: 100%;
+            min-height: 400px;
+        }
+
+        .visual-block img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            display: block;
+        }
+
+        .visual-caption {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* --- SLIDE 3: FULL SCREEN VISUAL / CARDS --- */
+        .slide-visual {
+            flex-direction: column;
+        }
+
+        .cards-container {
+            display: flex;
+            gap: 2rem;
+            width: 100%;
+            max-width: 1400px;
+            margin-top: 3rem;
+            justify-content: center;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 16px;
+            flex: 1;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(56, 189, 248, 0.3);
+        }
+
+        .card h4 {
+            color: #fff;
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+        }
+
+        /* --- UTILITIES --- */
+        .badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+
+    </style>
+</head>
+<body>
+
+    <main>
+
+        <section class="slide slide-title">
+            <span class="badge">Lecture 02</span>
+            <h1>OS Responsibilities &<br>System Calls</h1>
+            <div class="meta">
+                <p>Topics: Resource Allocation, Protection, APIs, and Process Management.</p>
+                <p style="font-size: 0.9rem; margin-top: 0.5rem;">Based on <em>lec2.md</em></p>
+            </div>
+        </section>
+
+        <section class="slide slide-split">
+            <div class="content-block">
+                <h3>The Interface</h3>
+                <h2>System Calls</h2>
+                <p style="margin-bottom: 1.5rem;">
+                    System calls provide the <strong>low-level interface</strong> between a running program and the Operating System. They act as the bridge between User Mode and Kernel Mode.
+                </p>
+                <ul>
+                    <li><strong>Protection:</strong> Ensures processes cannot interfere with each other or access unauthorized hardware directly.</li>
+                    <li><strong>Abstraction:</strong> Programs use high-level APIs (like POSIX or Windows API) which internally trigger these calls for portability.</li>
+                    <li><strong>Mechanism:</strong> Triggered via interrupts/traps, switching control to the kernel to execute the privileged operation.</li>
+                </ul>
+            </div>
+            <div class="visual-block">
+                <figure>
+                    <img src="https://placehold.co/600x400/1e293b/38bdf8?text=Diagram:+System+Call+Workflow" 
+                         alt="Diagram illustrating the transition from User Mode to Kernel Mode via a System Call">
+                    <figcaption class="visual-caption">Fig 1. Application triggers a trap to switch to Kernel Mode</figcaption>
+                </figure>
+            </div>
+        </section>
+
+        <section class="slide slide-visual">
+            <div style="text-align: center; max-width: 800px;">
+                <h3>Dynamic Execution</h3>
+                <h2>Process States</h2>
+                <p>A process is a program in execution. As it executes, it changes state.</p>
+            </div>
+
+            <div class="cards-container">
+                <div class="card">
+                    <h4>1. New & Ready</h4>
+                    <p>The process is created and loaded into main memory, waiting in the <strong>Ready Queue</strong> for CPU time.</p>
+                </div>
+                <div class="card">
+                    <h4>2. Running</h4>
+                    <p
