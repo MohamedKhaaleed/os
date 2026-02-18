@@ -3,96 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OS Lecture 2: System Calls & Processes</title>
+    <title>Lecture 02: OS Responsibilities & Processes</title>
     <style>
-        /* --- CSS VARIABLES & RESET --- */
+        /* * ==========================================
+         * 1. RESET & VARIABLES
+         * ==========================================
+         */
         :root {
-            --bg-color: #0f172a;       /* Deep Slate Blue */
-            --text-primary: #f8fafc;   /* Off-white */
-            --text-secondary: #94a3b8; /* Muted Blue-Grey */
-            --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%); /* Cyan to Indigo */
-            --card-bg: rgba(30, 41, 59, 0.7); /* Glassy background */
-            --font-main: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            --transition-speed: 0.5s;
+            /* Palette: Dark Mode Tech Aesthetic */
+            --bg-deep: #0f172a;        /* Main Background */
+            --bg-card: rgba(30, 41, 59, 0.7); /* Glassy Card */
+            --primary: #38bdf8;        /* Cyan */
+            --secondary: #818cf8;      /* Indigo */
+            --accent: #f472b6;         /* Pink (for highlights) */
+            --text-main: #f1f5f9;      /* White-ish */
+            --text-muted: #94a3b8;     /* Grey */
+            --code-bg: #1e293b;        /* Darker slate for code */
+            
+            /* Typography */
+            --font-stack: 'Inter', system-ui, -apple-system, sans-serif;
+            --font-code: 'Fira Code', 'Consolas', monospace;
+
+            /* Layout */
+            --slide-pad: 4rem;
+            --max-width: 1400px;
         }
 
         * {
-            box-sizing: border-box;
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
         }
 
         body {
-            font-family: var(--font-main);
-            background-color: var(--bg-color);
-            color: var(--text-primary);
-            overflow: hidden; /* Prevent standard scrolling */
+            font-family: var(--font-stack);
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            overflow: hidden; /* Hide standard scrollbar */
+            line-height: 1.6;
         }
 
-        /* --- SCROLL SNAP CONTAINER --- */
-        /* This creates the presentation "slide" behavior */
+        /* * ==========================================
+         * 2. SCROLL SNAP CONTAINER (THE ENGINE)
+         * ==========================================
+         */
         main {
             height: 100vh;
+            width: 100vw;
             overflow-y: scroll;
-            scroll-snap-type: y mandatory;
+            scroll-snap-type: y mandatory; /* Forces stop at each slide */
             scroll-behavior: smooth;
+            position: relative;
+            z-index: 1;
         }
 
-        /* --- SLIDE BASE STYLES --- */
-        .slide {
+        /* Ambient Background Glow */
+        .ambient-glow {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vw;
+            height: 80vh;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(15, 23, 42, 0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* * ==========================================
+         * 3. SLIDE ARCHITECTURE
+         * ==========================================
+         */
+        section.slide {
             height: 100vh;
             width: 100%;
-            scroll-snap-align: start;
+            scroll-snap-align: start; /* Snap point */
+            padding: var(--slide-pad);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: 4rem;
             position: relative;
-            overflow: hidden;
         }
 
-        /* Decorative background blobs for modern feel */
-        .slide::before {
-            content: '';
-            position: absolute;
-            width: 600px;
-            height: 600px;
-            background: var(--accent-gradient);
-            filter: blur(150px);
-            opacity: 0.15;
-            border-radius: 50%;
-            z-index: -1;
+        .container {
+            width: 100%;
+            max-width: var(--max-width);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
-        /* --- TYPOGRAPHY --- */
+        /* Typography Utilities */
         h1 {
-            font-size: 5rem;
+            font-size: 4.5rem;
             font-weight: 800;
-            line-height: 1.1;
-            margin-bottom: 1.5rem;
-            background: var(--accent-gradient);
+            letter-spacing: -0.02em;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
         }
 
         h2 {
             font-size: 3rem;
-            margin-bottom: 2rem;
-            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            color: var(--text-main);
         }
 
         h3 {
             font-size: 1.5rem;
-            color: var(--text-secondary);
+            color: var(--primary);
             text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 1rem;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
         }
 
-        p, li {
+        p {
             font-size: 1.25rem;
-            line-height: 1.6;
-            color: var(--text-secondary);
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            max-width: 70ch;
         }
 
         ul {
@@ -100,170 +133,351 @@
         }
 
         li {
-            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            margin-bottom: 0.75rem;
             padding-left: 1.5rem;
             position: relative;
+            color: var(--text-muted);
         }
 
         li::before {
-            content: '•';
-            color: #38bdf8; /* Accent color bullet */
+            content: "▹";
+            color: var(--primary);
             position: absolute;
             left: 0;
-            font-weight: bold;
         }
 
-        /* --- SLIDE 1: TITLE SLIDE --- */
-        .slide-title {
-            flex-direction: column;
-            text-align: center;
-        }
+        /* * ==========================================
+         * 4. COMPONENT STYLES
+         * ==========================================
+         */
 
-        .slide-title .meta {
-            margin-top: 2rem;
-            font-size: 1.1rem;
-            opacity: 0.8;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            padding-top: 2rem;
-            width: 50%;
-        }
-
-        /* --- SLIDE 2: SPLIT LAYOUT (Text + Image) --- */
-        .slide-split {
+        /* Cards */
+        .grid-cards {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4rem;
-            max-width: 1600px;
-        }
-
-        .content-block {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .visual-block {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: var(--card-bg);
-            border-radius: 20px;
-            padding: 1rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,255,255,0.05);
-            height: 100%;
-            min-height: 400px;
-        }
-
-        .visual-block img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 12px;
-            display: block;
-        }
-
-        .visual-caption {
-            text-align: center;
-            margin-top: 1rem;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        /* --- SLIDE 3: FULL SCREEN VISUAL / CARDS --- */
-        .slide-visual {
-            flex-direction: column;
-        }
-
-        .cards-container {
-            display: flex;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 2rem;
             width: 100%;
-            max-width: 1400px;
-            margin-top: 3rem;
-            justify-content: center;
+            margin-top: 2rem;
         }
 
         .card {
-            background: var(--card-bg);
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
             padding: 2rem;
-            border-radius: 16px;
-            flex: 1;
-            border: 1px solid rgba(255,255,255,0.05);
-            transition: transform 0.3s ease;
+            border-radius: 1rem;
+            transition: transform 0.3s ease, border-color 0.3s ease;
         }
 
         .card:hover {
-            transform: translateY(-10px);
-            border-color: rgba(56, 189, 248, 0.3);
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        .card-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: var(--secondary);
         }
 
         .card h4 {
-            color: #fff;
-            margin-bottom: 1rem;
-            font-size: 1.4rem;
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
         }
 
-        /* --- UTILITIES --- */
-        .badge {
-            display: inline-block;
+        /* Split Layout (Text + Image/Code) */
+        .split-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+            height: 100%;
+        }
+
+        .visual-container {
+            width: 100%;
+            height: 100%;
+            max-height: 500px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .visual-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* In a real scenario, remove opacity if you have real images */
+            opacity: 0.8; 
+        }
+
+        .visual-label {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background: rgba(0,0,0,0.8);
             padding: 0.5rem 1rem;
-            background: rgba(56, 189, 248, 0.1);
-            color: #38bdf8;
-            border-radius: 50px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
         }
 
+        /* Code Block Styling */
+        .code-block {
+            background: var(--code-bg);
+            padding: 2rem;
+            border-radius: 1rem;
+            font-family: var(--font-code);
+            font-size: 0.95rem;
+            color: #e2e8f0;
+            overflow-x: auto;
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+        }
+
+        .keyword { color: #c678dd; }
+        .func { color: #61afef; }
+        .string { color: #98c379; }
+        .comment { color: #5c6370; font-style: italic; }
+
+        /* Navigation Dots */
+        .nav-dots {
+            position: fixed;
+            right: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            z-index: 10;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            background: var(--primary);
+            transform: scale(1.3);
+        }
+
+        /* * ==========================================
+         * 5. RESPONSIVE
+         * ==========================================
+         */
+        @media (max-width: 1024px) {
+            h1 { font-size: 3rem; }
+            h2 { font-size: 2rem; }
+            .split-layout { grid-template-columns: 1fr; gap: 2rem; text-align: center; }
+            .split-layout li { text-align: left; display: inline-block; margin-right: 1rem; }
+            .visual-container { max-height: 300px; }
+            .code-block { font-size: 0.8rem; padding: 1rem; }
+        }
     </style>
 </head>
 <body>
 
-    <main>
+    <!-- Background Ambient Effect -->
+    <div class="ambient-glow"></div>
 
-        <section class="slide slide-title">
-            <span class="badge">Lecture 02</span>
-            <h1>OS Responsibilities &<br>System Calls</h1>
-            <div class="meta">
-                <p>Topics: Resource Allocation, Protection, APIs, and Process Management.</p>
-                <p style="font-size: 0.9rem; margin-top: 0.5rem;">Based on <em>lec2.md</em></p>
-            </div>
-        </section>
+    <!-- Navigation Dots (JavaScript enhances this, but CSS provides structure) -->
+    <nav class="nav-dots" id="navDots">
+        <div class="dot active" onclick="scrollToSlide(0)"></div>
+        <div class="dot" onclick="scrollToSlide(1)"></div>
+        <div class="dot" onclick="scrollToSlide(2)"></div>
+        <div class="dot" onclick="scrollToSlide(3)"></div>
+        <div class="dot" onclick="scrollToSlide(4)"></div>
+    </nav>
 
-        <section class="slide slide-split">
-            <div class="content-block">
-                <h3>The Interface</h3>
-                <h2>System Calls</h2>
-                <p style="margin-bottom: 1.5rem;">
-                    System calls provide the <strong>low-level interface</strong> between a running program and the Operating System. They act as the bridge between User Mode and Kernel Mode.
-                </p>
-                <ul>
-                    <li><strong>Protection:</strong> Ensures processes cannot interfere with each other or access unauthorized hardware directly.</li>
-                    <li><strong>Abstraction:</strong> Programs use high-level APIs (like POSIX or Windows API) which internally trigger these calls for portability.</li>
-                    <li><strong>Mechanism:</strong> Triggered via interrupts/traps, switching control to the kernel to execute the privileged operation.</li>
-                </ul>
-            </div>
-            <div class="visual-block">
-                <figure>
-                    <img src="https://placehold.co/600x400/1e293b/38bdf8?text=Diagram:+System+Call+Workflow" 
-                         alt="Diagram illustrating the transition from User Mode to Kernel Mode via a System Call">
-                    <figcaption class="visual-caption">Fig 1. Application triggers a trap to switch to Kernel Mode</figcaption>
-                </figure>
-            </div>
-        </section>
-
-        <section class="slide slide-visual">
-            <div style="text-align: center; max-width: 800px;">
-                <h3>Dynamic Execution</h3>
-                <h2>Process States</h2>
-                <p>A process is a program in execution. As it executes, it changes state.</p>
-            </div>
-
-            <div class="cards-container">
-                <div class="card">
-                    <h4>1. New & Ready</h4>
-                    <p>The process is created and loaded into main memory, waiting in the <strong>Ready Queue</strong> for CPU time.</p>
+    <main id="mainContainer">
+        
+        <!-- SLIDE 1: TITLE -->
+        <section class="slide">
+            <div class="container" style="align-items: center; text-align: center;">
+                <h3>Lecture 02</h3>
+                <h1>OS Responsibilities<br>& System Calls</h1>
+                <p>An intermediate layer between hardware and user programs.</p>
+                
+                <div style="margin-top: 3rem; display: flex; gap: 2rem;">
+                    <div style="text-align: left;">
+                        <span style="display:block; color:var(--text-muted); font-size:0.8rem; text-transform:uppercase;">Topic 01</span>
+                        <strong style="color:var(--text-main); font-size:1.2rem;">System Calls</strong>
+                    </div>
+                    <div style="width: 1px; background: rgba(255,255,255,0.2);"></div>
+                    <div style="text-align: left;">
+                        <span style="display:block; color:var(--text-muted); font-size:0.8rem; text-transform:uppercase;">Topic 02</span>
+                        <strong style="color:var(--text-main); font-size:1.2rem;">Process States</strong>
+                    </div>
                 </div>
-                <div class="card">
-                    <h4>2. Running</h4>
-                    <p
+            </div>
+        </section>
+
+        <!-- SLIDE 2: OS RESPONSIBILITIES (Grid Layout) -->
+        <section class="slide">
+            <div class="container">
+                <h3>Overview</h3>
+                <h2>Core Responsibilities</h2>
+                <p>The OS manages resources to ensure efficiency, safety, and ease of use.</p>
+
+                <div class="grid-cards">
+                    <div class="card">
+                        <div class="card-icon">⚙️</div>
+                        <h4>Resource Allocation</h4>
+                        <p style="font-size: 0.9rem; margin:0;">Manages CPU time, memory, and I/O devices among multiple users/processes.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">🛡️</div>
+                        <h4>Protection & Security</h4>
+                        <p style="font-size: 0.9rem; margin:0;">Isolates processes and prevents unauthorized access to resources.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">💾</div>
+                        <h4>Memory Management</h4>
+                        <p style="font-size: 0.9rem; margin:0;">Handles allocation, deallocation, and protection of memory spaces.</p>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">🔌</div>
+                        <h4>I/O Operations</h4>
+                        <p style="font-size: 0.9rem; margin:0;">Abstracts hardware details, providing a convenient interface for devices.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 3: SYSTEM CALLS (Split Layout) -->
+        <section class="slide">
+            <div class="container">
+                <div class="split-layout">
+                    <div class="text-content">
+                        <h3>The Interface</h3>
+                        <h2>System Calls & APIs</h2>
+                        <p>System calls provide the low-level interface between a running program and the OS. Most development uses high-level APIs (POSIX, Windows API) instead.</p>
+                        <ul>
+                            <li><strong>Portability:</strong> Standard APIs allow code to run on different OSs.</li>
+                            <li><strong>Safety:</strong> APIs handle validation before triggering the kernel.</li>
+                            <li><strong>Mechanism:</strong> Triggers a hardware interrupt/trap to switch mode.</li>
+                        </ul>
+                    </div>
+                    <div class="visual-content">
+                        <!-- Code Visual -->
+                        <div class="code-block">
+                            <div style="margin-bottom: 1rem; opacity: 0.7; font-size: 0.8rem;">// C Example: Copy file using System Calls</div>
+<pre>
+<span class="keyword">#include</span> &lt;unistd.h&gt;
+<span class="keyword">#include</span> &lt;fcntl.h&gt;
+
+<span class="keyword">int</span> <span class="func">main</span>() {
+    <span class="keyword">int</span> fd1 = <span class="func">open</span>(<span class="string">"file1.txt"</span>, O_RDONLY);
+    <span class="keyword">char</span> buffer[1024];
+    <span class="keyword">int</span> n;
+
+    <span class="comment">// Direct System Call Loop</span>
+    <span class="keyword">while</span> ((n = <span class="func">read</span>(fd1, buffer, <span class="keyword">sizeof</span>(buffer))) > 0) {
+        <span class="func">write</span>(1, buffer, n);
+    }
+    <span class="keyword">return</span> 0;
+}
+</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 4: PROCESS STATES (Image Focus) -->
+        <section class="slide">
+            <div class="container">
+                <div class="split-layout">
+                    <div class="visual-content">
+                        <div class="visual-container">
+                            <!-- Placeholder for Process State Diagram -->
+                            <!-- Uses placehold.co for demonstration, replace with actual asset -->
+                            <img src="https://placehold.co/800x600/1e293b/38bdf8?text=Process+State+Diagram+(New+->+Ready+->+Running)" 
+                                 alt="Diagram illustrating process states: New, Ready, Running, Waiting, Terminated">
+                            <span class="visual-label">Fig 2. Process State Transition</span>
+                        </div>
+                    </div>
+                    <div class="text-content">
+                        <h3>Dynamic Execution</h3>
+                        <h2>Process States</h2>
+                        <p>A process is a program in execution. It migrates between these states:</p>
+                        <ul style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <li><strong>New:</strong> Process is being created.</li>
+                            <li><strong>Running:</strong> Instructions executing.</li>
+                            <li><strong>Waiting:</strong> Waiting for I/O event.</li>
+                            <li><strong>Ready:</strong> Waiting for CPU.</li>
+                            <li><strong>Terminated:</strong> Finished execution.</li>
+                        </ul>
+                        <div style="margin-top: 2rem; padding: 1rem; background: rgba(56, 189, 248, 0.1); border-left: 2px solid var(--primary);">
+                            <small style="color: var(--primary); font-weight: bold;">NOTE</small><br>
+                            <small style="color: var(--text-muted);">Programs are static (disk). Processes are dynamic (memory + state).</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 5: LINUX PCB (Code Focus) -->
+        <section class="slide">
+            <div class="container">
+                <h3>Data Structures</h3>
+                <h2>Linux Process Representation</h2>
+                <p>In Linux, the Process Control Block (PCB) is a C structure called <code>task_struct</code>.</p>
+                
+                <div class="code-block" style="max-width: 800px; margin-top: 2rem;">
+<pre>
+<span class="keyword">struct</span> task_struct {
+    <span class="keyword">pid_t</span> pid;                  <span class="comment">// Process ID</span>
+    <span class="keyword">long</span> state;                 <span class="comment">// Process state (-1 unrunnable, 0 runnable, >0 stopped)</span>
+    <span class="keyword">unsigned int</span> time_slice;    <span class="comment">// Scheduling time slice</span>
+    <span class="keyword">struct</span> task_struct *parent; <span class="comment">// Parent process</span>
+    <span class="keyword">struct</span> list_head children;  <span class="comment">// List of child processes</span>
+    <span class="keyword">struct</span> files_struct *files; <span class="comment">// Open files info</span>
+    <span class="keyword">struct</span> mm_struct *mm;       <span class="comment">// Memory management info</span>
+};
+</pre>
+                </div>
+                
+                <p style="margin-top: 2rem; font-size: 1rem;">
+                    The scheduler uses this structure to decide which process runs next to maximize CPU utilization and throughput.
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Simple JS for Navigation State -->
+    <script>
+        const main = document.getElementById('mainContainer');
+        const dots = document.querySelectorAll('.dot');
+
+        // Scroll to specific slide
+        function scrollToSlide(index) {
+            const height = window.innerHeight;
+            main.scrollTo({
+                top: height * index,
+                behavior: 'smooth'
+            });
+        }
+
+        // Update active dot on scroll
+        main.addEventListener('scroll', () => {
+            const index = Math.round(main.scrollTop / window.innerHeight);
+            dots.forEach(d => d.classList.remove('active'));
+            if(dots[index]) dots[index].classList.add('active');
+        });
+    </script>
+</body>
+</html>
