@@ -3,481 +3,965 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lecture 02: OS Responsibilities & Processes</title>
+    <title>Lecture 3: Processes, Scheduling & IPC</title>
     <style>
-        /* * ==========================================
-         * 1. RESET & VARIABLES
-         * ==========================================
-         */
         :root {
-            /* Palette: Dark Mode Tech Aesthetic */
-            --bg-deep: #0f172a;        /* Main Background */
-            --bg-card: rgba(30, 41, 59, 0.7); /* Glassy Card */
-            --primary: #38bdf8;        /* Cyan */
-            --secondary: #818cf8;      /* Indigo */
-            --accent: #f472b6;         /* Pink (for highlights) */
-            --text-main: #f1f5f9;      /* White-ish */
-            --text-muted: #94a3b8;     /* Grey */
-            --code-bg: #1e293b;        /* Darker slate for code */
-            
-            /* Typography */
-            --font-stack: 'Inter', system-ui, -apple-system, sans-serif;
-            --font-code: 'Fira Code', 'Consolas', monospace;
-
-            /* Layout */
-            --slide-pad: 4rem;
-            --max-width: 1400px;
+            --bg-color: #0f172a;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-primary: #10b981; /* Switched to emerald theme for OS */
+            --accent-secondary: #3b82f6; /* Blue secondary */
+            --card-bg: #1e293b;
+            --success: #10b981;
+            --error: #ef4444;
+            --code-bg: #0b1120;
+            --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --code-font: 'Fira Code', 'Consolas', monospace;
         }
 
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
 
         body {
-            font-family: var(--font-stack);
-            background-color: var(--bg-deep);
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
             color: var(--text-main);
-            overflow: hidden; /* Hide standard scrollbar */
-            line-height: 1.6;
-        }
-
-        /* * ==========================================
-         * 2. SCROLL SNAP CONTAINER (THE ENGINE)
-         * ==========================================
-         */
-        main {
-            height: 100vh;
-            width: 100vw;
-            overflow-y: scroll;
-            scroll-snap-type: y mandatory; /* Forces stop at each slide */
-            scroll-behavior: smooth;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Ambient Background Glow */
-        .ambient-glow {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80vw;
-            height: 80vh;
-            background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(15, 23, 42, 0) 70%);
-            z-index: 0;
-            pointer-events: none;
-        }
-
-        /* * ==========================================
-         * 3. SLIDE ARCHITECTURE
-         * ==========================================
-         */
-        section.slide {
-            height: 100vh;
-            width: 100%;
-            scroll-snap-align: start; /* Snap point */
-            padding: var(--slide-pad);
+            overflow: hidden;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
-            position: relative;
+            height: 100vh;
         }
 
-        .container {
+        /* Presentation Container */
+        #presentation-container {
+            position: relative;
             width: 100%;
-            max-width: var(--max-width);
+            max-width: 1280px;
             height: 100%;
+            max-height: 850px;
+            background-color: var(--card-bg);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: 1rem;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            justify-content: center;
         }
 
-        /* Typography Utilities */
+        /* Slide Styles */
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 4rem 5rem 6rem 5rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
+            transform: translateY(20px);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .slide.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        /* Typography */
         h1 {
-            font-size: 4.5rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 1rem;
+            font-size: 3rem;
+            color: var(--accent-primary);
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
         }
 
         h2 {
-            font-size: 3rem;
+            font-size: 2.2rem;
+            color: var(--accent-secondary);
             margin-bottom: 1.5rem;
-            color: var(--text-main);
+            border-bottom: 2px solid rgba(59, 130, 246, 0.2);
+            padding-bottom: 0.5rem;
         }
 
         h3 {
             font-size: 1.5rem;
-            color: var(--primary);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
+            color: var(--text-main);
+            margin: 1.5rem 0 1rem 0;
         }
 
-        p {
-            font-size: 1.25rem;
+        p, li {
+            font-size: 1.15rem;
+            line-height: 1.6;
             color: var(--text-muted);
-            margin-bottom: 1.5rem;
-            max-width: 70ch;
+            margin-bottom: 1rem;
         }
 
         ul {
-            list-style: none;
+            margin-left: 2rem;
+            margin-bottom: 1.5rem;
         }
 
         li {
-            font-size: 1.2rem;
             margin-bottom: 0.75rem;
-            padding-left: 1.5rem;
-            position: relative;
-            color: var(--text-muted);
         }
 
-        li::before {
-            content: "▹";
-            color: var(--primary);
-            position: absolute;
-            left: 0;
-        }
-
-        /* * ==========================================
-         * 4. COMPONENT STYLES
-         * ==========================================
-         */
-
-        /* Cards */
-        .grid-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            width: 100%;
-            margin-top: 2rem;
-        }
-
-        .card {
-            background: var(--bg-card);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 2rem;
-            border-radius: 1rem;
-            transition: transform 0.3s ease, border-color 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            border-color: var(--primary);
-        }
-
-        .card-icon {
-            font-size: 2rem;
-            margin-bottom: 1rem;
-            color: var(--secondary);
-        }
-
-        .card h4 {
-            font-size: 1.25rem;
-            margin-bottom: 0.5rem;
+        strong {
             color: var(--text-main);
+            font-weight: 600;
         }
 
-        /* Split Layout (Text + Image/Code) */
-        .split-layout {
+        /* Layouts */
+        .grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 4rem;
-            align-items: center;
-            height: 100%;
+            gap: 2.5rem;
+            flex: 1;
         }
 
-        .visual-container {
-            width: 100%;
-            height: 100%;
-            max-height: 500px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 1rem;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.05);
+        .flex-center {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            position: relative;
-        }
-
-        .visual-container img {
-            width: 100%;
+            text-align: center;
             height: 100%;
-            object-fit: cover;
-            /* In a real scenario, remove opacity if you have real images */
-            opacity: 0.8; 
-        }
-
-        .visual-label {
-            position: absolute;
-            bottom: 1rem;
-            left: 1rem;
-            background: rgba(0,0,0,0.8);
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            font-size: 0.8rem;
-            color: var(--text-muted);
         }
 
         /* Code Block Styling */
-        .code-block {
-            background: var(--code-bg);
-            padding: 2rem;
-            border-radius: 1rem;
-            font-family: var(--font-code);
-            font-size: 0.95rem;
-            color: #e2e8f0;
+        pre {
+            background-color: var(--code-bg);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
             overflow-x: auto;
-            border-left: 4px solid var(--accent);
-            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: var(--code-font);
+            font-size: 0.95rem;
+            line-height: 1.4;
+            color: #e2e8f0;
+            margin-bottom: 1rem;
+            max-height: 450px;
+            overflow-y: auto;
+        }
+        
+        code {
+            font-family: var(--code-font);
+            color: var(--accent-primary);
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
         }
 
-        .keyword { color: #c678dd; }
-        .func { color: #61afef; }
-        .string { color: #98c379; }
-        .comment { color: #5c6370; font-style: italic; }
+        pre code {
+            color: inherit;
+            background: none;
+            padding: 0;
+        }
 
-        /* Navigation Dots */
-        .nav-dots {
-            position: fixed;
-            right: 2rem;
-            top: 50%;
-            transform: translateY(-50%);
+        .comment { color: #64748b; font-style: italic; }
+        .keyword { color: #c678dd; }
+        .string { color: #98c379; }
+        .function { color: #61afef; }
+        .type { color: #e5c07b; }
+
+        /* Visual Placeholders */
+        .visual-placeholder {
+            background: rgba(59, 130, 246, 0.05);
+            border: 2px dashed var(--accent-secondary);
+            border-radius: 0.75rem;
             display: flex;
             flex-direction: column;
-            gap: 1rem;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            color: var(--accent-secondary);
+            font-family: monospace;
+            text-align: center;
+            min-height: 250px;
+            height: 100%;
+        }
+
+        /* Navigation Controls */
+        .controls {
+            position: absolute;
+            bottom: 2rem;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 4rem;
             z-index: 10;
+            background: linear-gradient(to top, var(--card-bg) 50%, transparent);
         }
 
-        .dot {
-            width: 12px;
-            height: 12px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 50%;
+        .btn-nav {
+            background-color: var(--card-bg);
+            color: var(--accent-primary);
+            border: 2px solid var(--accent-primary);
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s;
         }
 
-        .dot.active {
-            background: var(--primary);
-            transform: scale(1.3);
+        .btn-nav:hover {
+            background-color: var(--accent-primary);
+            color: var(--bg-color);
         }
 
-        /* * ==========================================
-         * 5. RESPONSIVE
-         * ==========================================
-         */
-        @media (max-width: 1024px) {
-            h1 { font-size: 3rem; }
-            h2 { font-size: 2rem; }
-            .split-layout { grid-template-columns: 1fr; gap: 2rem; text-align: center; }
-            .split-layout li { text-align: left; display: inline-block; margin-right: 1rem; }
-            .visual-container { max-height: 300px; }
-            .code-block { font-size: 0.8rem; padding: 1rem; }
+        .btn-nav:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            background-color: transparent;
+            color: var(--accent-primary);
         }
+
+        .progress-indicator {
+            color: var(--text-muted);
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        /* Quiz Styles */
+        .quiz-container {
+            background-color: rgba(15, 23, 42, 0.6);
+            padding: 2rem;
+            border-radius: 1rem;
+            margin-top: 1rem;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .quiz-option {
+            display: block;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 2px solid transparent;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1.15rem;
+        }
+
+        .quiz-option:hover {
+            background-color: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .quiz-option input {
+            display: none;
+        }
+
+        .quiz-option.selected {
+            border-color: var(--accent-primary);
+            background-color: rgba(16, 185, 129, 0.15);
+        }
+
+        .quiz-option.correct {
+            border-color: var(--success);
+            background-color: rgba(16, 185, 129, 0.15);
+        }
+
+        .quiz-option.wrong {
+            border-color: var(--error);
+            background-color: rgba(239, 68, 68, 0.15);
+        }
+
+        .feedback {
+            margin-top: 1.5rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            min-height: 2rem;
+            text-align: center;
+        }
+
+        .feedback.success { color: var(--success); }
+        .feedback.error { color: var(--error); }
+
+        .check-btn {
+            background-color: var(--accent-secondary);
+            color: #fff;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: background 0.2s;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .check-btn:hover { background-color: #2563eb; }
+        .check-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
-    <!-- Background Ambient Effect -->
-    <div class="ambient-glow"></div>
-
-    <!-- Navigation Dots (JavaScript enhances this, but CSS provides structure) -->
-    <nav class="nav-dots" id="navDots">
-        <div class="dot active" onclick="scrollToSlide(0)"></div>
-        <div class="dot" onclick="scrollToSlide(1)"></div>
-        <div class="dot" onclick="scrollToSlide(2)"></div>
-        <div class="dot" onclick="scrollToSlide(3)"></div>
-        <div class="dot" onclick="scrollToSlide(4)"></div>
-    </nav>
-
-    <main id="mainContainer">
+    <div id="presentation-container">
         
-        <!-- SLIDE 1: TITLE -->
-        <section class="slide">
-            <div class="container" style="align-items: center; text-align: center;">
-                <h3>Lecture 02</h3>
-                <h1>OS Responsibilities<br>& System Calls</h1>
-                <p>An intermediate layer between hardware and user programs.</p>
-                
-                <div style="margin-top: 3rem; display: flex; gap: 2rem;">
-                    <div style="text-align: left;">
-                        <span style="display:block; color:var(--text-muted); font-size:0.8rem; text-transform:uppercase;">Topic 01</span>
-                        <strong style="color:var(--text-main); font-size:1.2rem;">System Calls</strong>
-                    </div>
-                    <div style="width: 1px; background: rgba(255,255,255,0.2);"></div>
-                    <div style="text-align: left;">
-                        <span style="display:block; color:var(--text-muted); font-size:0.8rem; text-transform:uppercase;">Topic 02</span>
-                        <strong style="color:var(--text-main); font-size:1.2rem;">Process States</strong>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- SLIDE 2: OS RESPONSIBILITIES (Grid Layout) -->
-        <section class="slide">
-            <div class="container">
-                <h3>Overview</h3>
-                <h2>Core Responsibilities</h2>
-                <p>The OS manages resources to ensure efficiency, safety, and ease of use.</p>
-
-                <div class="grid-cards">
-                    <div class="card">
-                        <div class="card-icon">⚙️</div>
-                        <h4>Resource Allocation</h4>
-                        <p style="font-size: 0.9rem; margin:0;">Manages CPU time, memory, and I/O devices among multiple users/processes.</p>
-                    </div>
-                    <div class="card">
-                        <div class="card-icon">🛡️</div>
-                        <h4>Protection & Security</h4>
-                        <p style="font-size: 0.9rem; margin:0;">Isolates processes and prevents unauthorized access to resources.</p>
-                    </div>
-                    <div class="card">
-                        <div class="card-icon">💾</div>
-                        <h4>Memory Management</h4>
-                        <p style="font-size: 0.9rem; margin:0;">Handles allocation, deallocation, and protection of memory spaces.</p>
-                    </div>
-                    <div class="card">
-                        <div class="card-icon">🔌</div>
-                        <h4>I/O Operations</h4>
-                        <p style="font-size: 0.9rem; margin:0;">Abstracts hardware details, providing a convenient interface for devices.</p>
+        <!-- Slide 1: Title -->
+        <section class="slide active">
+            <div class="flex-center">
+                <h1>Lecture 3: Schedulers, Processes & IPC</h1>
+                <p>An in-depth look at OS CPU scheduling, process lifecycle, and Interprocess Communication.</p>
+                <div style="margin-top: 3rem; width: 50%;">
+                    <div style="display: flex; justify-content: center; width: 100%;">
+                        <svg viewBox="0 0 500 300" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3));">
+                            <!-- Connections -->
+                            <path d="M 250 150 L 100 100" stroke="var(--text-muted)" stroke-width="2" stroke-dasharray="5,5"/>
+                            <path d="M 250 150 L 400 100" stroke="var(--text-muted)" stroke-width="2" stroke-dasharray="5,5"/>
+                            <path d="M 250 150 L 250 250" stroke="var(--text-muted)" stroke-width="2" stroke-dasharray="5,5"/>
+                            
+                            <!-- OS Kernel (Center) -->
+                            <circle cx="250" cy="150" r="45" fill="var(--card-bg)" stroke="var(--accent-primary)" stroke-width="3"/>
+                            <text x="250" y="155" fill="var(--text-main)" font-size="14" text-anchor="middle" font-weight="bold">OS Kernel</text>
+                            
+                            <!-- CPU -->
+                            <rect x="60" y="60" width="80" height="80" rx="10" fill="var(--card-bg)" stroke="var(--accent-secondary)" stroke-width="3"/>
+                            <text x="100" y="105" fill="var(--text-main)" font-size="16" text-anchor="middle" font-weight="bold">CPU</text>
+                            
+                            <!-- RAM -->
+                            <rect x="360" y="60" width="80" height="80" rx="5" fill="var(--card-bg)" stroke="var(--accent-secondary)" stroke-width="3"/>
+                            <line x1="370" y1="80" x2="430" y2="80" stroke="var(--text-muted)" stroke-width="4"/>
+                            <line x1="370" y1="100" x2="430" y2="100" stroke="var(--text-muted)" stroke-width="4"/>
+                            <line x1="370" y1="120" x2="430" y2="120" stroke="var(--text-muted)" stroke-width="4"/>
+                            <text x="400" y="50" fill="var(--text-main)" font-size="14" text-anchor="middle" font-weight="bold">RAM</text>
+                            
+                            <!-- Disk -->
+                            <path d="M 210 240 C 210 230 290 230 290 240 L 290 270 C 290 280 210 280 210 270 Z" fill="var(--card-bg)" stroke="var(--accent-secondary)" stroke-width="3"/>
+                            <path d="M 210 240 C 210 250 290 250 290 240" fill="none" stroke="var(--accent-secondary)" stroke-width="3"/>
+                            <text x="250" y="295" fill="var(--text-main)" font-size="14" text-anchor="middle" font-weight="bold">Disk</text>
+                        </svg>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- SLIDE 3: SYSTEM CALLS (Split Layout) -->
+        <!-- Slide 2: Schedulers -->
         <section class="slide">
-            <div class="container">
-                <div class="split-layout">
-                    <div class="text-content">
-                        <h3>The Interface</h3>
-                        <h2>System Calls & APIs</h2>
-                        <p>System calls provide the low-level interface between a running program and the OS. Most development uses high-level APIs (POSIX, Windows API) instead.</p>
-                        <ul>
-                            <li><strong>Portability:</strong> Standard APIs allow code to run on different OSs.</li>
-                            <li><strong>Safety:</strong> APIs handle validation before triggering the kernel.</li>
-                            <li><strong>Mechanism:</strong> Triggers a hardware interrupt/trap to switch mode.</li>
-                        </ul>
+            <h2>Process Schedulers</h2>
+            <div class="grid-2">
+                <div>
+                    <h3>Long-term Scheduler (Job Scheduler)</h3>
+                    <ul>
+                        <li>Selects which jobs are brought into the ready queue, moved to memory, and prepared to run.</li>
+                        <li>Invoked <strong>less frequently</strong> (seconds/minutes), so it can afford to be slower.</li>
+                        <li>Controls the <strong>degree of multiprogramming</strong> (the number of processes currently loaded into RAM).</li>
+                        <li>Must carefully balance the mix of processes to prevent system slowdowns.</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>Short-term Scheduler (CPU Scheduler)</h3>
+                    <ul>
+                        <li>Selects which process from the ready queue gets to run on the CPU next.</li>
+                        <li>Invoked <strong>very frequently</strong> (milliseconds).</li>
+                        <li>Must be extremely fast to minimize system overhead.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 3: Process Mix & Medium-Term Scheduler -->
+        <section class="slide">
+            <h2>Process Mix & Swapping</h2>
+            <div class="grid-2">
+                <div>
+                    <p>The Long-term scheduler strives for a good mix of two types of processes:</p>
+                    <ul>
+                        <li><strong>I/O-bound:</strong> Spends more time doing I/O operations than computing (many short CPU bursts).</li>
+                        <li><strong>CPU-bound:</strong> Spends more time doing computations (many long CPU bursts).</li>
+                    </ul>
+                    
+                    <h3 style="margin-top: 2rem;">The Medium-term Scheduler</h3>
+                    <p>Added if the degree of multiprogramming needs to decrease to free up RAM.</p>
+                    <ul>
+                        <li><strong>Swap Out:</strong> Selects a process (often inactive or waiting on I/O), removes its memory image from RAM, and writes it to the disk.</li>
+                        <li><strong>Swap In:</strong> Reads the process back from disk into RAM when space is available or it's ready to continue.</li>
+                    </ul>
+                </div>
+                <div>
+                    <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                        <svg viewBox="0 0 500 300" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto;">
+                            <!-- Main Memory -->
+                            <rect x="50" y="40" width="150" height="220" rx="8" fill="rgba(16, 185, 129, 0.05)" stroke="var(--accent-primary)" stroke-width="2"/>
+                            <text x="125" y="70" fill="var(--accent-primary)" font-size="16" text-anchor="middle" font-weight="bold">Main Memory</text>
+                            <rect x="75" y="90" width="100" height="40" rx="4" fill="var(--card-bg)" stroke="var(--text-muted)" stroke-width="1"/>
+                            <text x="125" y="115" fill="var(--text-main)" font-size="14" text-anchor="middle">Process P1</text>
+                            <rect x="75" y="140" width="100" height="40" rx="4" fill="var(--card-bg)" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4,4"/>
+                            <text x="125" y="165" fill="var(--text-muted)" font-size="12" text-anchor="middle">Free Space</text>
+                            
+                            <!-- Backing Store -->
+                            <rect x="300" y="40" width="150" height="220" rx="8" fill="rgba(59, 130, 246, 0.05)" stroke="var(--accent-secondary)" stroke-width="2"/>
+                            <text x="375" y="70" fill="var(--accent-secondary)" font-size="16" text-anchor="middle" font-weight="bold">Backing Store</text>
+                            <rect x="325" y="140" width="100" height="40" rx="4" fill="var(--card-bg)" stroke="var(--text-muted)" stroke-width="1"/>
+                            <text x="375" y="165" fill="var(--text-main)" font-size="14" text-anchor="middle">Process P2</text>
+                            
+                            <!-- Arrows -->
+                            <!-- Swap Out -->
+                            <path d="M 180 160 C 220 160 220 120 260 120" stroke="var(--error)" stroke-width="3" fill="none" marker-end="url(#arrow-error)"/>
+                            <text x="240" y="110" fill="var(--error)" font-size="12" text-anchor="middle" font-weight="bold">Swap Out</text>
+                            <!-- Swap In -->
+                            <path d="M 320 160 C 280 160 280 200 240 200" stroke="var(--success)" stroke-width="3" fill="none" marker-end="url(#arrow-success)"/>
+                            <text x="260" y="220" fill="var(--success)" font-size="12" text-anchor="middle" font-weight="bold">Swap In</text>
+
+                            <defs>
+                                <marker id="arrow-error" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--error)" />
+                                </marker>
+                                <marker id="arrow-success" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--success)" />
+                                </marker>
+                            </defs>
+                        </svg>
                     </div>
-                    <div class="visual-content">
-                        <!-- Code Visual -->
-                        <div class="code-block">
-                            <div style="margin-bottom: 1rem; opacity: 0.7; font-size: 0.8rem;">// C Example: Copy file using System Calls</div>
-<pre>
-<span class="keyword">#include</span> &lt;unistd.h&gt;
-<span class="keyword">#include</span> &lt;fcntl.h&gt;
+                </div>
+            </div>
+        </section>
 
-<span class="keyword">int</span> <span class="func">main</span>() {
-    <span class="keyword">int</span> fd1 = <span class="func">open</span>(<span class="string">"file1.txt"</span>, O_RDONLY);
-    <span class="keyword">char</span> buffer[1024];
-    <span class="keyword">int</span> n;
+        <!-- Slide 4: Context Switching -->
+        <section class="slide">
+            <h2>Context Switching</h2>
+            <p>A context switch occurs when the CPU stops executing one process and begins executing another.</p>
+            
+            <div class="grid-2">
+                <div>
+                    <h3>The 3 Steps:</h3>
+                    <ol style="margin-left: 2rem; font-size: 1.15rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1.5rem;">
+                        <li><strong>Save state</strong> of the current process.</li>
+                        <li><strong>Reload state</strong> of the next process.</li>
+                        <li><strong>Execute</strong> the next process.</li>
+                    </ol>
+                    <p><strong>Overhead:</strong> Context switch time is pure overhead; the system does no useful work while switching.</p>
+                    <p>Contexts are represented in the <strong>PCB (Process Control Block)</strong>. Hardware support (like multiple register sets) can drastically speed up switching time.</p>
+                </div>
+                <div>
+                    <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                        <svg viewBox="0 0 500 300" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto;">
+                            <!-- Axis -->
+                            <line x1="150" y1="40" x2="150" y2="280" stroke="var(--text-muted)" stroke-width="2"/>
+                            <line x1="350" y1="40" x2="350" y2="280" stroke="var(--text-muted)" stroke-width="2"/>
+                            <text x="150" y="30" fill="var(--accent-primary)" font-size="14" text-anchor="middle" font-weight="bold">Process P0</text>
+                            <text x="250" y="30" fill="var(--text-muted)" font-size="14" text-anchor="middle" font-weight="bold">OS Kernel</text>
+                            <text x="350" y="30" fill="var(--accent-secondary)" font-size="14" text-anchor="middle" font-weight="bold">Process P1</text>
+                            
+                            <!-- P0 Executing -->
+                            <rect x="140" y="50" width="20" height="40" fill="var(--accent-primary)"/>
+                            <text x="130" y="75" fill="var(--text-main)" font-size="12" text-anchor="end">Executing</text>
+                            
+                            <!-- Save State into PCB0 -->
+                            <path d="M 150 90 L 250 110" stroke="var(--text-muted)" stroke-width="2" marker-end="url(#arrow-os)"/>
+                            <text x="190" y="95" fill="var(--text-muted)" font-size="10">Save state to PCB0</text>
+                            
+                            <!-- OS Idle/Switching Time -->
+                            <rect x="240" y="110" width="20" height="60" fill="rgba(255,255,255,0.1)"/>
+                            <text x="250" y="145" fill="var(--text-main)" font-size="12" text-anchor="middle">Idle (Overhead)</text>
+                            
+                            <!-- Load State from PCB1 -->
+                            <path d="M 250 170 L 350 190" stroke="var(--text-muted)" stroke-width="2" marker-end="url(#arrow-os)"/>
+                            <text x="310" y="175" fill="var(--text-muted)" font-size="10">Load state from PCB1</text>
+                            
+                            <!-- P1 Executing -->
+                            <rect x="340" y="190" width="20" height="50" fill="var(--accent-secondary)"/>
+                            <text x="370" y="220" fill="var(--text-main)" font-size="12" text-anchor="start">Executing</text>
+                            
+                            <defs>
+                                <marker id="arrow-os" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-muted)" />
+                                </marker>
+                            </defs>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <span class="comment">// Direct System Call Loop</span>
-    <span class="keyword">while</span> ((n = <span class="func">read</span>(fd1, buffer, <span class="keyword">sizeof</span>(buffer))) > 0) {
-        <span class="func">write</span>(1, buffer, n);
+        <!-- Slide 5: Process Creation -->
+        <section class="slide">
+            <h2>Process Creation Basics</h2>
+            <p>A Parent process creates child processes, which can in turn create other processes, forming a tree hierarchy. Processes are managed via a <strong>PID (Process Identifier)</strong>.</p>
+            
+            <div class="grid-2" style="margin-top: 2rem;">
+                <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 0.5rem;">
+                    <h3 style="margin-top: 0; color: var(--accent-primary);">Resource Sharing Options</h3>
+                    <ul>
+                        <li>Parent and child share <strong>all</strong> resources.</li>
+                        <li>Parent and child share a <strong>subset</strong> of resources.</li>
+                        <li>Parent and child share <strong>no</strong> resources.</li>
+                    </ul>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 0.5rem;">
+                    <h3 style="margin-top: 0; color: var(--accent-secondary);">Execution & Memory Options</h3>
+                    <ul>
+                        <li>Parent and children execute <strong>concurrently</strong>.</li>
+                        <li>Parent <strong>waits</strong> until children terminate.</li>
+                        <li>Child completely <strong>duplicates</strong> the parent's address space.</li>
+                        <li>Child has a <strong>new program loaded</strong> into its address space.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 6: Process Creation Code (Fork) -->
+        <section class="slide">
+            <h2>Process Creation: Duplicating Memory (<code>fork</code>)</h2>
+            <p>Here, the child process is an exact duplicate of the parent's address space.</p>
+<pre><code><span class="keyword">#include</span> <span class="string">&lt;stdio.h&gt;</span>
+<span class="keyword">#include</span> <span class="string">&lt;stdlib.h&gt;</span>
+<span class="keyword">#include</span> <span class="string">&lt;unistd.h&gt;</span>
+<span class="keyword">#include</span> <span class="string">&lt;sys/wait.h&gt;</span>
+
+<span class="type">int</span> <span class="function">main</span>() {
+    <span class="comment">// 1. Parent creates a duplicate of itself</span>
+    <span class="type">pid_t</span> pid = <span class="function">fork</span>(); 
+
+    <span class="keyword">if</span> (pid == <span class="type">0</span>) {
+        <span class="comment">// --- CHILD PROCESS ---</span>
+        <span class="function">printf</span>(<span class="string">"Child: I am an exact duplicate of the parent!\n"</span>);
+        <span class="function">exit</span>(<span class="type">0</span>); <span class="comment">// 2. Child explicitly exits</span>
+
+    } <span class="keyword">else if</span> (pid > <span class="type">0</span>) {
+        <span class="comment">// --- PARENT PROCESS ---</span>
+        <span class="function">printf</span>(<span class="string">"Parent: Waiting for the child to finish...\n"</span>);
+        <span class="function">wait</span>(<span class="type">NULL</span>); <span class="comment">// 3. Parent waits for the child's exit()</span>
+        <span class="function">printf</span>(<span class="string">"Parent: Child finished! Parent resumes.\n"</span>);
     }
-    <span class="keyword">return</span> 0;
+    <span class="keyword">return</span> <span class="type">0</span>;
+}</code></pre>
+        </section>
+
+        <!-- Slide 7: Process Creation Code (Exec) -->
+        <section class="slide">
+            <h2>Process Creation: Loading New Program (<code>exec</code>)</h2>
+            <p>Using <code>exec()</code> immediately after <code>fork()</code> to replace the child's memory space.</p>
+<pre><code><span class="keyword">#include</span> <span class="string">&lt;stdio.h&gt;</span>
+<span class="keyword">#include</span> <span class="string">&lt;unistd.h&gt;</span>
+<span class="keyword">#include</span> <span class="string">&lt;sys/wait.h&gt;</span>
+
+<span class="type">int</span> <span class="function">main</span>() {
+    <span class="type">pid_t</span> pid = <span class="function">fork</span>(); 
+
+    <span class="keyword">if</span> (pid == <span class="type">0</span>) {
+        <span class="comment">// --- CHILD PROCESS ---</span>
+        <span class="function">printf</span>(<span class="string">"Child: I am replacing my memory with a new program!\n"</span>);
+        <span class="comment">// 2. child calls exec() - Runs the simple "ls" command</span>
+        <span class="function">execlp</span>(<span class="string">"ls"</span>, <span class="string">"ls"</span>, <span class="type">NULL</span>); 
+        
+        <span class="keyword">return</span> <span class="type">1</span>; <span class="comment">// ONLY runs if exec() fails.</span>
+
+    } <span class="keyword">else if</span> (pid > <span class="type">0</span>) {
+        <span class="comment">// --- PARENT PROCESS ---</span>
+        <span class="function">wait</span>(<span class="type">NULL</span>); 
+        <span class="function">printf</span>(<span class="string">"Parent: Child finished! Parent resumes.\n"</span>);
+    }
+    <span class="keyword">return</span> <span class="type">0</span>;
+}</code></pre>
+        </section>
+
+        <!-- Slide 8: Process Termination -->
+        <section class="slide">
+            <h2>Process Termination</h2>
+            <div class="grid-2">
+                <div>
+                    <h3>Normal Termination (<code>exit</code>)</h3>
+                    <p>Process executes its last statement and asks OS to delete it using the <code>exit()</code> system call.</p>
+                    <ul>
+                        <li>Returns status data from child to parent via <code>wait()</code>.</li>
+                        <li>Process resources are successfully deallocated by the OS.</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>Forced Termination (<code>abort</code>)</h3>
+                    <p>Parent may violently terminate child processes using the <code>abort()</code> system call. Reasons include:</p>
+                    <ul>
+                        <li>Child has exceeded allocated resources.</li>
+                        <li>Task assigned to the child is no longer required.</li>
+                        <li>The parent is exiting and the OS does not allow children to continue (cascading termination).</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 9: Interprocess Communication -->
+        <section class="slide">
+            <h2>Interprocess Communication (IPC)</h2>
+            <p>Processes can be <strong>Independent</strong> (security, isolation) or <strong>Cooperating</strong> (performance, modularity, convenience).</p>
+            
+            <div class="grid-2" style="margin-top: 2rem;">
+                <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid var(--accent-primary); padding: 1.5rem; border-radius: 0.5rem;">
+                    <h3 style="margin-top: 0; color: var(--accent-primary);">Shared Memory</h3>
+                    <p>A region of memory is established that is shared by cooperating processes.</p>
+                    <ul>
+                        <li>Processes exchange info by reading/writing to this region.</li>
+                        <li><strong>Extremely fast.</strong> System calls are only required to establish the region, after which memory behaves normally.</li>
+                        <li>Requires manual user synchronization to prevent race conditions.</li>
+                    </ul>
+                </div>
+                <div style="background: rgba(59, 130, 246, 0.05); border: 1px solid var(--accent-secondary); padding: 1.5rem; border-radius: 0.5rem;">
+                    <h3 style="margin-top: 0; color: var(--accent-secondary);">Message Passing</h3>
+                    <p>Messages are exchanged between the cooperating processes via the OS.</p>
+                    <ul>
+                        <li>Implemented using system calls (send/receive).</li>
+                        <li>Highly useful for exchanging smaller amounts of data.</li>
+                        <li>Slower than shared memory due to kernel intervention on every message.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 10: Producer-Consumer Problem -->
+        <section class="slide">
+            <h2>The Producer-Consumer Problem</h2>
+            <p>A classic paradigm for cooperating processes: a <strong>Producer</strong> process produces information that is consumed by a <strong>Consumer</strong> process.</p>
+            
+            <div class="grid-2" style="margin-top: 2rem;">
+                <div>
+                    <h3>Buffer Types</h3>
+                    <ul>
+                        <li><strong>Unbounded-buffer:</strong> Places no practical limit on the size of the buffer. The producer never has to wait.</li>
+                        <li><strong>Bounded-buffer:</strong> Assumes a fixed buffer size. 
+                            <ul>
+                                <li>The consumer must wait if the buffer is empty.</li>
+                                <li>The producer must wait if the buffer is full.</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                        <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto;">
+                            <g transform="translate(200, 150)">
+                                <!-- Segments (8 slots) -->
+                                <!-- Filled Slots -->
+                                <path d="M 0 -80 A 80 80 0 0 1 56.5 -56.5 L 42.4 -42.4 A 60 60 0 0 0 0 -60 Z" fill="var(--accent-primary)"/>
+                                <path d="M 56.5 -56.5 A 80 80 0 0 1 80 0 L 60 0 A 60 60 0 0 0 42.4 -42.4 Z" fill="var(--accent-primary)"/>
+                                <path d="M 80 0 A 80 80 0 0 1 56.5 56.5 L 42.4 42.4 A 60 60 0 0 0 60 0 Z" fill="var(--accent-primary)"/>
+                                <path d="M 56.5 56.5 A 80 80 0 0 1 0 80 L 0 60 A 60 60 0 0 0 42.4 42.4 Z" fill="var(--accent-primary)"/>
+                                
+                                <!-- Empty Slots -->
+                                <path d="M 0 80 A 80 80 0 0 1 -56.5 56.5 L -42.4 42.4 A 60 60 0 0 0 0 60 Z" fill="rgba(255,255,255,0.05)"/>
+                                <path d="M -56.5 56.5 A 80 80 0 0 1 -80 0 L -60 0 A 60 60 0 0 0 -42.4 42.4 Z" fill="rgba(255,255,255,0.05)"/>
+                                <path d="M -80 0 A 80 80 0 0 1 -56.5 -56.5 L -42.4 -42.4 A 60 60 0 0 0 -60 0 Z" fill="rgba(255,255,255,0.05)"/>
+                                <path d="M -56.5 -56.5 A 80 80 0 0 1 0 -80 L 0 -60 A 60 60 0 0 0 -42.4 -42.4 Z" fill="rgba(255,255,255,0.05)"/>
+                                
+                                <!-- Grid Lines dividing array slots -->
+                                <line x1="-80" y1="0" x2="80" y2="0" stroke="var(--card-bg)" stroke-width="2"/>
+                                <line x1="0" y1="-80" x2="0" y2="80" stroke="var(--card-bg)" stroke-width="2"/>
+                                <line x1="-56.5" y1="-56.5" x2="56.5" y2="56.5" stroke="var(--card-bg)" stroke-width="2"/>
+                                <line x1="-56.5" y1="56.5" x2="56.5" y2="-56.5" stroke="var(--card-bg)" stroke-width="2"/>
+                                
+                                <!-- Inner hole -->
+                                <circle cx="0" cy="0" r="45" fill="var(--card-bg)"/>
+                                
+                                <!-- IN pointer -->
+                                <g transform="rotate(180)">
+                                    <path d="M 0 -110 L 0 -85" stroke="var(--accent-secondary)" stroke-width="3" marker-end="url(#arrow-in)"/>
+                                    <text x="0" y="-120" fill="var(--accent-secondary)" font-size="14" text-anchor="middle" font-weight="bold">in (Producer)</text>
+                                </g>
+                                
+                                <!-- OUT pointer -->
+                                <g transform="rotate(0)">
+                                    <path d="M 0 -110 L 0 -85" stroke="var(--error)" stroke-width="3" marker-end="url(#arrow-out)"/>
+                                    <text x="0" y="-120" fill="var(--error)" font-size="14" text-anchor="middle" font-weight="bold">out (Consumer)</text>
+                                </g>
+                            </g>
+                            
+                            <defs>
+                                <marker id="arrow-in" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent-secondary)" />
+                                </marker>
+                                <marker id="arrow-out" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--error)" />
+                                </marker>
+                            </defs>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 11: Producer-Consumer (Modulo Implementation) -->
+        <section class="slide">
+            <h2>Producer-Consumer: Standard Bounded Buffer</h2>
+            <p>Uses a circular array. Buffer is empty when <code>in == out</code>. Buffer is full when <code>((in + 1) % SIZE) == out</code> (wastes 1 slot).</p>
+<pre><code><span class="type">item</span> buffer[BUFFER_SIZE];
+<span class="type">int</span> in = <span class="type">0</span>;
+<span class="type">int</span> out = <span class="type">0</span>;
+
+<span class="type">void</span> <span class="function">producer</span>() {
+    <span class="type">item</span> next_produced;
+    <span class="keyword">while</span> (<span class="type">true</span>) {
+        <span class="keyword">while</span> ((in + <span class="type">1</span>) % BUFFER_SIZE == out) { ; } <span class="comment">/* wait if full */</span>
+        buffer[in] = next_produced;
+        in = (in + <span class="type">1</span>) % BUFFER_SIZE;
+    }
 }
-</pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
+<span class="type">void</span> <span class="function">consumer</span>() {
+    <span class="type">item</span> next_consumed;
+    <span class="keyword">while</span> (<span class="type">true</span>) {
+        <span class="keyword">while</span> (in == out) { ; } <span class="comment">/* wait if empty */</span>
+        next_consumed = buffer[out];
+        out = (out + <span class="type">1</span>) % BUFFER_SIZE;
+    }
+}</code></pre>
         </section>
 
-        <!-- SLIDE 4: PROCESS STATES (Image Focus) -->
+        <!-- Slide 12: Producer-Consumer (Count Implementation) -->
         <section class="slide">
-            <div class="container">
-                <div class="split-layout">
-                    <div class="visual-content">
-                        <div class="visual-container">
-                            <!-- Placeholder for Process State Diagram -->
-                            <!-- Uses placehold.co for demonstration, replace with actual asset -->
-                            <img src="https://placehold.co/800x600/1e293b/38bdf8?text=Process+State+Diagram+(New+->+Ready+->+Running)" 
-                                 alt="Diagram illustrating process states: New, Ready, Running, Waiting, Terminated">
-                            <span class="visual-label">Fig 2. Process State Transition</span>
-                        </div>
-                    </div>
-                    <div class="text-content">
-                        <h3>Dynamic Execution</h3>
-                        <h2>Process States</h2>
-                        <p>A process is a program in execution. It migrates between these states:</p>
-                        <ul style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <li><strong>New:</strong> Process is being created.</li>
-                            <li><strong>Running:</strong> Instructions executing.</li>
-                            <li><strong>Waiting:</strong> Waiting for I/O event.</li>
-                            <li><strong>Ready:</strong> Waiting for CPU.</li>
-                            <li><strong>Terminated:</strong> Finished execution.</li>
-                        </ul>
-                        <div style="margin-top: 2rem; padding: 1rem; background: rgba(56, 189, 248, 0.1); border-left: 2px solid var(--primary);">
-                            <small style="color: var(--primary); font-weight: bold;">NOTE</small><br>
-                            <small style="color: var(--text-muted);">Programs are static (disk). Processes are dynamic (memory + state).</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <h2>Producer-Consumer: Corrected with Counter</h2>
+            <p>Fixes the wasted slot issue by tracking total items using a <code>count</code> variable.</p>
+<pre><code><span class="type">item</span> buffer[BUFFER_SIZE];
+<span class="type">int</span> in = <span class="type">0</span>; <span class="type">int</span> out = <span class="type">0</span>;
+<span class="type">int</span> count = <span class="type">0</span>; <span class="comment">// Tracks number of items</span>
+
+<span class="type">void</span> <span class="function">producer</span>() {
+    <span class="keyword">while</span> (<span class="type">true</span>) {
+        <span class="keyword">while</span> (count == BUFFER_SIZE) { ; } <span class="comment">/* wait if full */</span>
+        buffer[in] = next_produced;
+        in = (in + <span class="type">1</span>) % BUFFER_SIZE;
+        count++; <span class="comment">// Note: Incrementing count</span>
+    }
+}
+
+<span class="type">void</span> <span class="function">consumer</span>() {
+    <span class="keyword">while</span> (<span class="type">true</span>) {
+        <span class="keyword">while</span> (count == <span class="type">0</span>) { ; } <span class="comment">/* wait if empty */</span>
+        next_consumed = buffer[out];
+        out = (out + <span class="type">1</span>) % BUFFER_SIZE;
+        count--; <span class="comment">// Note: Decrementing count</span>
+    }
+}</code></pre>
         </section>
 
-        <!-- SLIDE 5: LINUX PCB (Code Focus) -->
+        <!-- Slide 13: Quiz Q1 -->
         <section class="slide">
-            <div class="container">
-                <h3>Data Structures</h3>
-                <h2>Linux Process Representation</h2>
-                <p>In Linux, the Process Control Block (PCB) is a C structure called <code>task_struct</code>.</p>
+            <h2>Knowledge Check 1/5</h2>
+            <div class="quiz-container" data-answer="1">
+                <p style="font-size: 1.3rem; margin-bottom: 1.5rem; color: #fff;">Which OS scheduler is responsible for changing the "degree of multiprogramming" by selecting which jobs are moved into memory?</p>
                 
-                <div class="code-block" style="max-width: 800px; margin-top: 2rem;">
-<pre>
-<span class="keyword">struct</span> task_struct {
-    <span class="keyword">pid_t</span> pid;                  <span class="comment">// Process ID</span>
-    <span class="keyword">long</span> state;                 <span class="comment">// Process state (-1 unrunnable, 0 runnable, >0 stopped)</span>
-    <span class="keyword">unsigned int</span> time_slice;    <span class="comment">// Scheduling time slice</span>
-    <span class="keyword">struct</span> task_struct *parent; <span class="comment">// Parent process</span>
-    <span class="keyword">struct</span> list_head children;  <span class="comment">// List of child processes</span>
-    <span class="keyword">struct</span> files_struct *files; <span class="comment">// Open files info</span>
-    <span class="keyword">struct</span> mm_struct *mm;       <span class="comment">// Memory management info</span>
-};
-</pre>
-                </div>
+                <label class="quiz-option">
+                    <input type="radio" name="q1" value="0"> A. The Short-term scheduler (CPU scheduler)
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q1" value="1"> B. The Long-term scheduler (Job scheduler)
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q1" value="2"> C. The Medium-term scheduler
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q1" value="3"> D. The I/O scheduler
+                </label>
                 
-                <p style="margin-top: 2rem; font-size: 1rem;">
-                    The scheduler uses this structure to decide which process runs next to maximize CPU utilization and throughput.
-                </p>
+                <button class="check-btn" onclick="checkAnswer(this)">Submit Answer</button>
+                <div class="feedback"></div>
             </div>
         </section>
 
-    </main>
+        <!-- Slide 14: Quiz Q2 -->
+        <section class="slide">
+            <h2>Knowledge Check 2/5</h2>
+            <div class="quiz-container" data-answer="2">
+                <p style="font-size: 1.3rem; margin-bottom: 1.5rem; color: #fff;">During a Context Switch, where is the saved state of the old process stored?</p>
+                
+                <label class="quiz-option">
+                    <input type="radio" name="q2" value="0"> A. In the CPU cache
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q2" value="1"> B. On the Hard Disk (Swap)
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q2" value="2"> C. In the PCB (Process Control Block)
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q2" value="3"> D. In the Shared Memory region
+                </label>
+                
+                <button class="check-btn" onclick="checkAnswer(this)">Submit Answer</button>
+                <div class="feedback"></div>
+            </div>
+        </section>
 
-    <!-- Simple JS for Navigation State -->
+        <!-- Slide 15: Quiz Q3 -->
+        <section class="slide">
+            <h2>Knowledge Check 3/5</h2>
+            <div class="quiz-container" data-answer="0">
+                <p style="font-size: 1.3rem; margin-bottom: 1.5rem; color: #fff;">In C, when calling <code>fork()</code>, what does it mean if the returned PID is equal to 0?</p>
+                
+                <label class="quiz-option">
+                    <input type="radio" name="q3" value="0"> A. You are currently executing within the newly created Child process.
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q3" value="1"> B. You are currently executing within the Parent process.
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q3" value="2"> C. The fork() system call has completely failed.
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q3" value="3"> D. The child process has finished and exited.
+                </label>
+                
+                <button class="check-btn" onclick="checkAnswer(this)">Submit Answer</button>
+                <div class="feedback"></div>
+            </div>
+        </section>
+
+        <!-- Slide 16: Quiz Q4 -->
+        <section class="slide">
+            <h2>Knowledge Check 4/5</h2>
+            <div class="quiz-container" data-answer="1">
+                <p style="font-size: 1.3rem; margin-bottom: 1.5rem; color: #fff;">Which IPC (Interprocess Communication) mechanism is generally FASTER once initially established?</p>
+                
+                <label class="quiz-option">
+                    <input type="radio" name="q4" value="0"> A. Message Passing, because it uses system calls for every transfer.
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q4" value="1"> B. Shared Memory, because system calls are only required during the setup phase.
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q4" value="2"> C. They operate at the exact same speed.
+                </label>
+                
+                <button class="check-btn" onclick="checkAnswer(this)">Submit Answer</button>
+                <div class="feedback"></div>
+            </div>
+        </section>
+
+        <!-- Slide 17: Quiz Q5 -->
+        <section class="slide">
+            <h2>Knowledge Check 5/5</h2>
+            <div class="quiz-container" data-answer="2">
+                <p style="font-size: 1.3rem; margin-bottom: 1.5rem; color: #fff;">In the standard circular array implementation of the Producer-Consumer problem (without the 'count' variable), what condition indicates the buffer is <strong>full</strong>?</p>
+                
+                <label class="quiz-option">
+                    <input type="radio" name="q5" value="0"> A. <code>in == out</code>
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q5" value="1"> B. <code>in == BUFFER_SIZE</code>
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q5" value="2"> C. <code>((in + 1) % BUFFER_SIZE) == out</code>
+                </label>
+                <label class="quiz-option">
+                    <input type="radio" name="q5" value="3"> D. <code>out == 0</code>
+                </label>
+                
+                <button class="check-btn" onclick="checkAnswer(this)">Submit Answer</button>
+                <div class="feedback"></div>
+            </div>
+        </section>
+
+        <!-- Navigation Controls -->
+        <div class="controls">
+            <button class="btn-nav" id="prev-btn" onclick="changeSlide(-1)" disabled>← Previous</button>
+            <span class="progress-indicator" id="slide-indicator">1 / 17</span>
+            <button class="btn-nav" id="next-btn" onclick="changeSlide(1)">Next →</button>
+        </div>
+
+    </div>
+
     <script>
-        const main = document.getElementById('mainContainer');
-        const dots = document.querySelectorAll('.dot');
+        // Slide Navigation Logic
+        let currentSlideIndex = 0;
+        const slides = document.querySelectorAll('.slide');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const indicator = document.getElementById('slide-indicator');
 
-        // Scroll to specific slide
-        function scrollToSlide(index) {
-            const height = window.innerHeight;
-            main.scrollTo({
-                top: height * index,
-                behavior: 'smooth'
-            });
+        function updateControls() {
+            prevBtn.disabled = currentSlideIndex === 0;
+            nextBtn.disabled = currentSlideIndex === slides.length - 1;
+            indicator.innerText = `${currentSlideIndex + 1} / ${slides.length}`;
         }
 
-        // Update active dot on scroll
-        main.addEventListener('scroll', () => {
-            const index = Math.round(main.scrollTop / window.innerHeight);
-            dots.forEach(d => d.classList.remove('active'));
-            if(dots[index]) dots[index].classList.add('active');
+        function changeSlide(direction) {
+            slides[currentSlideIndex].classList.remove('active');
+            
+            currentSlideIndex += direction;
+            
+            // Boundary checks
+            if (currentSlideIndex < 0) currentSlideIndex = 0;
+            if (currentSlideIndex >= slides.length) currentSlideIndex = slides.length - 1;
+
+            slides[currentSlideIndex].classList.add('active');
+            updateControls();
+        }
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                if (currentSlideIndex < slides.length - 1) changeSlide(1);
+            } else if (e.key === 'ArrowLeft') {
+                if (currentSlideIndex > 0) changeSlide(-1);
+            }
         });
+
+        // Quiz Logic
+        document.querySelectorAll('.quiz-option').forEach(option => {
+            option.addEventListener('click', function() {
+                // Prevent changing answer if already submitted
+                const container = this.closest('.quiz-container');
+                if (container.classList.contains('submitted')) return;
+
+                // Remove selected from siblings
+                const siblings = container.querySelectorAll('.quiz-option');
+                siblings.forEach(sib => sib.classList.remove('selected'));
+                
+                // Add selected to clicked
+                this.classList.add('selected');
+                this.querySelector('input').checked = true;
+            });
+        });
+
+        function checkAnswer(btn) {
+            const container = btn.closest('.quiz-container');
+            const selectedOption = container.querySelector('.quiz-option.selected');
+            const feedbackDiv = container.querySelector('.feedback');
+            const correctAnswerIndex = container.getAttribute('data-answer');
+
+            if (!selectedOption) {
+                feedbackDiv.innerText = "Please select an option first.";
+                feedbackDiv.className = "feedback error";
+                return;
+            }
+
+            container.classList.add('submitted');
+            btn.disabled = true;
+            const selectedValue = selectedOption.querySelector('input').value;
+
+            // Highlight all options
+            const allOptions = container.querySelectorAll('.quiz-option');
+            allOptions.forEach(opt => {
+                if (opt.querySelector('input').value === correctAnswerIndex) {
+                    opt.classList.add('correct');
+                } else if (opt.classList.contains('selected')) {
+                    opt.classList.add('wrong');
+                }
+            });
+
+            if (selectedValue === correctAnswerIndex) {
+                feedbackDiv.innerText = "Correct! Well done.";
+                feedbackDiv.className = "feedback success";
+            } else {
+                feedbackDiv.innerText = "Incorrect. Review the highlighted correct answer.";
+                feedbackDiv.className = "feedback error";
+            }
+        }
+
+        // Init
+        updateControls();
     </script>
 </body>
 </html>
